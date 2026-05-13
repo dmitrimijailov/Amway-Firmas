@@ -287,7 +287,7 @@ function SignView({ sigs, setSigs }) {
           Escribe tu nombre o número IBO para encontrarte y firmar.
         </div>
         <input
-          placeholder="Ej: Galan  ó  6006058072"
+          placeholder="Escribe tu nombre, apellido o número IBO"
           value={query}
           onChange={e => setQuery(e.target.value)}
           autoFocus
