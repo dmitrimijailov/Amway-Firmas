@@ -7,7 +7,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 const JSONBIN_BIN_ID = "6a03fb06adc21f119a9155dd";
 const JSONBIN_API_KEY = "$2a$10$mRa7FTILqRfWVvcK5C5hqOQPY/aeDObYGND1VAhushmJdjutPEFgy";
 
-const ADMIN_PASS = "worldcrowns";
+const ADMIN_PASS = "worldcrownss";
 
 const SIGNERS = [
   { name: "Galan, Theo",                          ibo: "6006058072" },
