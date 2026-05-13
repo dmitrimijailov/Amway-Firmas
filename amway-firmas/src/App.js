@@ -66,20 +66,25 @@ const C = {
 };
 
 // ── JSONBin helpers ───────────────────────────────────────────────────────────
+const VALID_IDX = new Set(Array.from({length:45},(_,i)=>String(i)));
+
 async function loadSigs() {
   try {
     const r = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
       headers: { "X-Master-Key": JSONBIN_API_KEY }
     });
     const data = await r.json();
-    return data.record || {};
+    const raw = data.record || {};
+    const clean = {};
+    Object.keys(raw).forEach(k => { if (VALID_IDX.has(k)) clean[k] = raw[k]; });
+    return clean;
   } catch { return {}; }
 }
 
 async function saveSig(idx, sigData, allSigs) {
   try {
-    const updated = { ...allSigs, [idx]: { date: sigData.date, signed: true, img: sigData.img } };
-    await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+    const updated = { ...allSigs, [String(idx)]: { date: sigData.date, signed: true, img: sigData.img } };
+    const r = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -87,17 +92,19 @@ async function saveSig(idx, sigData, allSigs) {
       },
       body: JSON.stringify(updated)
     });
+    if (!r.ok) throw new Error("Save failed");
     return updated;
   } catch (e) { console.error(e); return allSigs; }
 }
 
 async function clearAllSigs() {
   try {
-    await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+    const r = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", "X-Master-Key": JSONBIN_API_KEY },
       body: JSON.stringify({})
     });
+    if (!r.ok) throw new Error("Clear failed");
   } catch {}
 }
 
