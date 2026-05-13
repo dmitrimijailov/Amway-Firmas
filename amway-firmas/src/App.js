@@ -1,38 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { initializeApp } from "firebase/app";
-import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FIREBASE CONFIG — reemplaza con tus datos de Firebase (ver instrucciones)
+// JSONBin.io — base de datos gratuita, no necesita configuración extra
+// Crea una cuenta en jsonbin.io, crea un bin con {} y pega el BIN_ID y API_KEY
 // ─────────────────────────────────────────────────────────────────────────────
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+const JSONBIN_BIN_ID = "6a03fb06adc21f119a9155dd";
+const JSONBIN_API_KEY = "$2a$10$mRa7FTILqRfWVvcK5C5hqOQPY/aeDObYGND1VAhushmJdjutPEFgy";
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyBHOXlPpqVD0f-PhErbbaXW7HtkAWzOUHc",
-  authDomain: "amway-firmas.firebaseapp.com",
-  projectId: "amway-firmas",
-  storageBucket: "amway-firmas.firebasestorage.app",
-  messagingSenderId: "923403757853",
-  appId: "1:923403757853:web:a6b60f752a905fdb0299f4"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-  authDomain: "TU_PROJECT.firebaseapp.com",
-  projectId: "TU_PROJECT_ID",
-  storageBucket: "TU_PROJECT.appspot.com",
-  messagingSenderId: "TU_SENDER_ID",
-  appId: "TU_APP_ID"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-// ─────────────────────────────────────────────────────────────────────────────
 const ADMIN_PASS = "Dimito26";
 
 const SIGNERS = [
@@ -91,26 +65,40 @@ const C = {
   ink: "#1a3a6b", gold: "#b45309",
 };
 
-// ── Firebase helpers ──────────────────────────────────────────────────────────
+// ── JSONBin helpers ───────────────────────────────────────────────────────────
 async function loadSigs() {
   try {
-    const snap = await getDoc(doc(db, "amway", "firmas"));
-    return snap.exists() ? snap.data() : {};
+    const r = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+      headers: { "X-Master-Key": JSONBIN_API_KEY }
+    });
+    const data = await r.json();
+    return data.record || {};
   } catch { return {}; }
 }
 
-async function saveSig(idx, data) {
-  // Store only metadata (no image) in Firestore; image stays local for privacy
+async function saveSig(idx, sigData, allSigs) {
   try {
-    const snap = await getDoc(doc(db, "amway", "firmas"));
-    const current = snap.exists() ? snap.data() : {};
-    current[idx] = { date: data.date, signed: true };
-    await setDoc(doc(db, "amway", "firmas"), current);
-  } catch (e) { console.error(e); }
+    const updated = { ...allSigs, [idx]: { date: sigData.date, signed: true, img: sigData.img } };
+    await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Master-Key": JSONBIN_API_KEY
+      },
+      body: JSON.stringify(updated)
+    });
+    return updated;
+  } catch (e) { console.error(e); return allSigs; }
 }
 
 async function clearAllSigs() {
-  try { await setDoc(doc(db, "amway", "firmas"), {}); } catch {}
+  try {
+    await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-Master-Key": JSONBIN_API_KEY },
+      body: JSON.stringify({})
+    });
+  } catch {}
 }
 
 // ── Signature Canvas ──────────────────────────────────────────────────────────
@@ -185,7 +173,7 @@ function Letter({ signedCount, total }) {
       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: C.gold, marginBottom: 12 }}>
         Carta de Autorización
       </div>
-      <p style={{ margin: "0 0 12px", fontSize: 12, color: C.sub, fontFamily: "system-ui" }}>12 Mayo 2026</p>
+      <p style={{ margin: "0 0 10px", fontSize: 12, color: C.sub, fontFamily: "system-ui" }}>12 Mayo 2026</p>
       <p style={{ margin: "0 0 12px", fontWeight: 700 }}>Amway Latam,</p>
       <p style={{ margin: "0 0 12px" }}>
         Por medio de la presente, los abajo firmantes deseamos solicitar el mantener la integridad de nuestra línea de auspicio.
@@ -200,7 +188,6 @@ function Letter({ signedCount, total }) {
         Agradecemos de antemano su atención y apoyo para corregir esta situación.
       </p>
       <p style={{ margin: "0 0 4px", fontStyle: "italic" }}>Atentamente,</p>
-      {/* Show count but NOT names */}
       <div style={{
         marginTop: 12, padding: "10px 14px",
         background: "#f0f4ff", border: `1px solid #c7d7f5`,
@@ -213,10 +200,11 @@ function Letter({ signedCount, total }) {
 }
 
 // ── Sign View ─────────────────────────────────────────────────────────────────
-function SignView({ sigs, onSigned }) {
+function SignView({ sigs, setSigs }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(null);
   const [done, setDone] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const signedCount = Object.keys(sigs).length;
   const total = SIGNERS.length;
@@ -227,7 +215,7 @@ function SignView({ sigs, onSigned }) {
       )
     : [];
 
-  if (done) {
+  if (done && selected !== null) {
     const s = SIGNERS[selected];
     return (
       <div style={{ textAlign: "center", padding: "50px 20px" }}>
@@ -261,12 +249,19 @@ function SignView({ sigs, onSigned }) {
             <div style={{ fontWeight: 700, color: C.green }}>Ya firmaste este documento</div>
             <div style={{ fontSize: 13, color: C.sub, marginTop: 4 }}>Tu firma fue registrada el {sigs[selected].date}.</div>
           </div>
+        ) : saving ? (
+          <div style={{ textAlign: "center", padding: 30, color: C.sub, fontFamily: "system-ui" }}>
+            Guardando firma... ⏳
+          </div>
         ) : (
           <SignatureCanvas
             name={s.name.split(",")[0]}
             onSave={async img => {
+              setSaving(true);
               const date = new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
-              await onSigned(selected, { img, date });
+              const updated = await saveSig(selected, { img, date }, sigs);
+              setSigs(updated);
+              setSaving(false);
               setDone(true);
             }}
             onCancel={() => setSelected(null)}
@@ -282,7 +277,7 @@ function SignView({ sigs, onSigned }) {
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "20px 20px 24px" }}>
         <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>¿Estás en la lista de firmantes?</div>
         <div style={{ fontSize: 13, color: C.sub, marginBottom: 14 }}>
-          Escribe tu nombre o número IBO para encontrarte y agregar tu firma.
+          Escribe tu nombre o número IBO para encontrarte y firmar.
         </div>
         <input
           placeholder="Ej: Galan  ó  6006058072"
@@ -308,7 +303,7 @@ function SignView({ sigs, onSigned }) {
                   const i = SIGNERS.indexOf(s);
                   const signed = !!sigs[i];
                   return (
-                    <button key={i} onClick={() => setSelected(i)} style={{
+                    <button key={i} onClick={() => { setSelected(i); setDone(false); }} style={{
                       background: signed ? C.greenBg : "#f8faff",
                       border: `1.5px solid ${signed ? "#bbf7d0" : C.accentL}`,
                       borderRadius: 8, padding: "11px 14px",
@@ -334,7 +329,7 @@ function SignView({ sigs, onSigned }) {
 }
 
 // ── Admin View ────────────────────────────────────────────────────────────────
-function AdminView({ sigs, onClear }) {
+function AdminView({ sigs, setSigs }) {
   const [pass, setPass] = useState("");
   const [auth, setAuth] = useState(false);
 
@@ -355,16 +350,6 @@ function AdminView({ sigs, onClear }) {
   const total = SIGNERS.length;
   const pct = Math.round((signed / total) * 100);
 
-  const exportCSV = () => {
-    const rows = [["#", "Nombre", "IBO", "Fecha"]];
-    SIGNERS.forEach((s, i) => rows.push([i + 1, s.name, s.ibo, sigs[i] ? sigs[i].date : "Pendiente"]));
-    const csv = rows.map(r => r.map(c => `"${c}"`).join(",")).join("\n");
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    a.download = "firmas_amway_latam.csv";
-    a.click();
-  };
-
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 16 }}>
@@ -380,15 +365,27 @@ function AdminView({ sigs, onClear }) {
         ))}
       </div>
       <div style={{ height: 7, background: "#e5e7eb", borderRadius: 99, overflow: "hidden", marginBottom: 20 }}>
-        <div style={{ height: "100%", borderRadius: 99, width: `${pct}%`, background: `linear-gradient(90deg,${C.accent},${C.accentL})`, transition: "width .4s" }} />
+        <div style={{ height: "100%", borderRadius: 99, width: `${pct}%`, background: `linear-gradient(90deg,${C.accent},${C.accentL})` }} />
       </div>
-      <button onClick={exportCSV} style={{ ...btn(C.accent, "#fff"), width: "100%", fontWeight: 700, marginBottom: 10 }}>
+
+      <button onClick={() => {
+        const rows = [["#", "Nombre", "IBO", "Fecha"]];
+        SIGNERS.forEach((s, i) => rows.push([i + 1, s.name, s.ibo, sigs[i] ? sigs[i].date : "Pendiente"]));
+        const csv = rows.map(r => r.map(c => `"${c}"`).join(",")).join("\n");
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+        a.download = "firmas_amway_latam.csv"; a.click();
+      }} style={{ ...btn(C.accent, "#fff"), width: "100%", fontWeight: 700, marginBottom: 10 }}>
         ⬇️ Exportar lista (CSV)
       </button>
-      <button onClick={async () => { if (!window.confirm("¿Borrar TODAS las firmas?")) return; await clearAllSigs(); onClear(); }}
-        style={{ ...btn("#fff0f0", C.red), width: "100%", marginBottom: 20 }}>
+
+      <button onClick={async () => {
+        if (!window.confirm("¿Borrar TODAS las firmas?")) return;
+        await clearAllSigs(); setSigs({});
+      }} style={{ ...btn("#fff0f0", C.red), width: "100%", marginBottom: 20 }}>
         🗑️ Borrar todas las firmas
       </button>
+
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
         {SIGNERS.map((s, i) => {
           const d = sigs[i];
@@ -406,6 +403,7 @@ function AdminView({ sigs, onClear }) {
                   IBO #{s.ibo}{d ? ` · ${d.date}` : ""}
                 </div>
               </div>
+              {d && d.img && <img src={d.img} alt="firma" style={{ height: 30, border: `1px solid #d1d5db`, borderRadius: 4, background: "#fff", padding: "1px 6px", flexShrink: 0 }} />}
             </div>
           );
         })}
@@ -419,18 +417,7 @@ export default function App() {
   const [sigs, setSigs] = useState(null);
   const [tab, setTab] = useState("sign");
 
-  useEffect(() => {
-    // Real-time listener — updates live when anyone signs
-    const unsub = onSnapshot(doc(db, "amway", "firmas"), snap => {
-      setSigs(snap.exists() ? snap.data() : {});
-    });
-    return unsub;
-  }, []);
-
-  const handleSigned = useCallback(async (idx, data) => {
-    await saveSig(idx, data);
-    // onSnapshot will update sigs automatically
-  }, []);
+  useEffect(() => { loadSigs().then(setSigs); }, []);
 
   if (!sigs) return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Georgia, serif" }}>
@@ -471,8 +458,8 @@ export default function App() {
             }}>{t.label}</button>
           ))}
         </div>
-        {tab === "sign" && <SignView sigs={sigs} onSigned={handleSigned} />}
-        {tab === "admin" && <AdminView sigs={sigs} onClear={() => setSigs({})} />}
+        {tab === "sign" && <SignView sigs={sigs} setSigs={setSigs} />}
+        {tab === "admin" && <AdminView sigs={sigs} setSigs={setSigs} />}
       </div>
     </div>
   );
