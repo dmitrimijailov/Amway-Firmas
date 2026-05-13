@@ -379,6 +379,48 @@ function AdminView({ sigs, setSigs }) {
         ⬇️ Exportar lista (CSV)
       </button>
 
+      <button onClick={() => {
+        const html = `<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"/>
+<title>Carta Amway LATAM - Firmas</title>
+<style>
+  body{font-family:Georgia,serif;max-width:750px;margin:40px auto;padding:0 30px;color:#1a1a1a}
+  h2{color:#1a4480;font-size:18px;margin-bottom:4px}
+  .sub{font-size:11px;color:#6b7280;letter-spacing:.1em;text-transform:uppercase;margin-bottom:20px}
+  .carta{border-left:4px solid #b45309;padding:16px 20px;background:#fffef7;margin-bottom:30px;font-size:14px;line-height:1.8}
+  .ftit{font-size:13px;font-weight:bold;color:#1a4480;margin:30px 0 16px;border-bottom:1px solid #ddd;padding-bottom:6px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .box{border:1px solid #ddd;border-radius:8px;padding:12px}
+  .nom{font-weight:bold;font-size:13px}
+  .ibo{font-size:11px;color:#6b7280;font-family:system-ui;margin-bottom:8px}
+  .img{width:100%;max-height:60px;object-fit:contain;background:#fff;border:1px dashed #ccc;border-radius:4px;padding:4px;box-sizing:border-box}
+  .fec{font-size:10px;color:#6b7280;font-family:system-ui;margin-top:4px}
+  .pen{color:#9ca3af;font-style:italic;font-size:12px}
+  @media print{body{margin:20px}}
+</style></head><body>
+<h2>Carta de Autorización · Amway LATAM</h2>
+<div class="sub">Integridad de Línea de Auspicio · ${new Date().toLocaleDateString("es-MX",{day:"2-digit",month:"long",year:"numeric"})}</div>
+<div class="carta">
+  <p style="font-size:12px;color:#6b7280;margin:0 0 10px">12 Mayo 2026</p>
+  <p><strong>Amway Latam,</strong></p>
+  <p>Por medio de la presente, los abajo firmantes deseamos solicitar el mantener la integridad de nuestra línea de auspicio.</p>
+  <p>Actualmente, por un error, nos encontramos registrados bajo el código <strong>(IBO #2308327919 Bautista, José Dmitri)</strong>. Sin embargo, para mantener la continuidad y estructura correcta, solicitamos permanecer bajo la línea de <strong>Paz Rosa Nohemi (IBO #7026401301)</strong>.</p>
+  <p>Nuestro interés es preservar la continuidad, estabilidad y correcta organización de la red, respetando la línea de patrocinio originalmente establecida.</p>
+  <p>Agradecemos de antemano su atención y apoyo para corregir esta situación.</p>
+  <p><em>Atentamente,</em></p>
+</div>
+<div class="ftit">✍️ Firmas recolectadas (${Object.keys(sigs).length} de ${SIGNERS.length})</div>
+<div class="grid">
+${SIGNERS.map((s,i)=>{const d=sigs[i];return`<div class="box"><div class="nom">${s.name}</div><div class="ibo">IBO #${s.ibo}</div>${d&&d.img?`<img class="img" src="${d.img}"/><div class="fec">Firmado: ${d.date}</div>`:`<div class="pen">— Pendiente —</div>`}</div>`;}).join("")}
+</div></body></html>`;
+        const w = window.open("","_blank");
+        w.document.write(html);
+        w.document.close();
+        setTimeout(()=>w.print(),800);
+      }} style={{ ...btn("#15803d", "#fff"), width: "100%", fontWeight: 700, marginBottom: 10 }}>
+        📄 Exportar PDF con todas las firmas
+      </button>
+
       <button onClick={async () => {
         if (!window.confirm("¿Borrar TODAS las firmas?")) return;
         await clearAllSigs(); setSigs({});
