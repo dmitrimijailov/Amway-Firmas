@@ -1,7 +1,19 @@
 import { useState, useRef, useEffect } from "react";
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
 
-// Google Apps Script URL
-const GSCRIPT_URL = "https://script.google.com/macros/s/AKfycbyuT8YrlZFGfU1JOhF6AxRdnKWXU02zEOFrQnPdupibBdi5C0-L3wVgWvVPLD7xrzo/exec";
+const firebaseConfig = {
+  apiKey: "AIzaSyBHOXlPpqVD0f-PhErbbaXW7HtkAWzOUHc",
+  authDomain: "amway-firmas.firebaseapp.com",
+  projectId: "amway-firmas",
+  storageBucket: "amway-firmas.firebasestorage.app",
+  messagingSenderId: "923403757853",
+  appId: "1:923403757853:web:a6b60f752a905fdb0299f4"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
+
 const ADMIN_PASS = "worldcrownss";
 
 const SIGNERS = [
@@ -60,67 +72,20 @@ const C = {
   ink: "#1a3a6b", gold: "#b45309",
 };
 
-// Submit via iframe trick to bypass CORS
-function submitViaForm(data) {
-  return new Promise((resolve) => {
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = GSCRIPT_URL;
-    form.target = "hidden_iframe";
-    form.style.display = "none";
-
-    const input = document.createElement("input");
-    input.type = "hidden";
-    input.name = "payload";
-    input.value = JSON.stringify(data);
-    form.appendChild(input);
-
-    let iframe = document.getElementById("hidden_iframe");
-    if (!iframe) {
-      iframe = document.createElement("iframe");
-      iframe.name = "hidden_iframe";
-      iframe.id = "hidden_iframe";
-      iframe.style.display = "none";
-      document.body.appendChild(iframe);
-    }
-
-    iframe.onload = () => resolve(true);
-    document.body.appendChild(form);
-    form.submit();
-    document.body.removeChild(form);
-    setTimeout(() => resolve(true), 3000);
+async function saveSig(idx, date, img) {
+  await setDoc(doc(db, "firmas", String(idx)), {
+    nombre: SIGNERS[idx].name,
+    ibo: SIGNERS[idx].ibo,
+    date,
+    img,
+    signed: true
   });
 }
 
-async function loadSigs() {
-  try {
-    const r = await fetch(GSCRIPT_URL + "?action=load");
-    const data = await r.json();
-    return data || {};
-  } catch { return {}; }
-}
-
-async function saveSig(idx, sigData, allSigs) {
-  try {
-    await submitViaForm({
-      action: "save",
-      index: String(idx),
-      nombre: SIGNERS[idx].name,
-      ibo: SIGNERS[idx].ibo,
-      fecha: sigData.date,
-      img: sigData.img
-    });
-    return { ...allSigs, [String(idx)]: { date: sigData.date, signed: true, img: sigData.img } };
-  } catch (e) {
-    console.error(e);
-    return allSigs;
-  }
-}
-
 async function clearAllSigs() {
-  try {
-    await submitViaForm({ action: "clear" });
-  } catch (e) { console.error(e); }
+  const { collection, getDocs, deleteDoc } = await import("firebase/firestore");
+  const snap = await getDocs(collection(db, "firmas"));
+  for (const d of snap.docs) await deleteDoc(d.ref);
 }
 
 function SignatureCanvas({ name, onSave, onCancel }) {
@@ -144,39 +109,24 @@ function SignatureCanvas({ name, onSave, onCancel }) {
     last.current = p; setHasStroke(true);
   };
   const up = () => { drawing.current = false; };
-  const clear = () => {
-    ref.current.getContext("2d").clearRect(0, 0, ref.current.width, ref.current.height);
-    setHasStroke(false);
-  };
+  const clear = () => { ref.current.getContext("2d").clearRect(0, 0, ref.current.width, ref.current.height); setHasStroke(false); };
 
-  useEffect(() => {
-    const c = ref.current;
-    c.width = c.parentElement.clientWidth - 32;
-    c.height = 130;
-  }, []);
+  useEffect(() => { const c = ref.current; c.width = c.parentElement.clientWidth - 32; c.height = 130; }, []);
 
   return (
     <div style={{ background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: 16 }}>
-      <p style={{ margin: "0 0 8px", fontSize: 13, color: C.sub }}>
-        Dibuja tu firma, <strong style={{ color: C.text }}>{name}</strong>:
-      </p>
+      <p style={{ margin: "0 0 8px", fontSize: 13, color: C.sub }}>Dibuja tu firma, <strong style={{ color: C.text }}>{name}</strong>:</p>
       <div style={{ border: `1.5px dashed ${C.border}`, borderRadius: 8, background: "#fafeff", cursor: "crosshair", overflow: "hidden" }}>
         <canvas ref={ref} style={{ display: "block", touchAction: "none", width: "100%" }}
           onMouseDown={down} onMouseMove={move} onMouseUp={up} onMouseLeave={up}
           onTouchStart={down} onTouchMove={move} onTouchEnd={up} />
       </div>
-      <p style={{ margin: "5px 0 10px", fontSize: 11, color: C.sub, textAlign: "center" }}>
-        Usa el dedo (celular) o el mouse
-      </p>
+      <p style={{ margin: "5px 0 10px", fontSize: 11, color: C.sub, textAlign: "center" }}>Usa el dedo (celular) o el mouse</p>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={clear} style={btn("#f3f4f6", C.sub)}>Limpiar</button>
         <button onClick={onCancel} style={btn("#fff0f0", C.red)}>Cancelar</button>
-        <button onClick={() => {
-          if (!hasStroke) return alert("Por favor traza tu firma.");
-          onSave(ref.current.toDataURL("image/png"));
-        }} style={{ ...btn(C.accent, "#fff"), flex: 1, fontWeight: 700 }}>
-          Confirmar firma
-        </button>
+        <button onClick={() => { if (!hasStroke) return alert("Por favor traza tu firma."); onSave(ref.current.toDataURL("image/png")); }}
+          style={{ ...btn(C.accent, "#fff"), flex: 1, fontWeight: 700 }}>Confirmar firma</button>
       </div>
     </div>
   );
@@ -184,29 +134,14 @@ function SignatureCanvas({ name, onSave, onCancel }) {
 
 function Letter({ signedCount, total }) {
   return (
-    <div style={{
-      background: "#fffef7", border: `1px solid #e0d8c0`,
-      borderLeft: `4px solid ${C.gold}`, borderRadius: 10,
-      padding: "20px 22px", marginBottom: 24,
-      fontFamily: "Georgia, serif", fontSize: 14, color: "#3a3228", lineHeight: 1.85,
-    }}>
-      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: C.gold, marginBottom: 12 }}>
-        Carta de Autorizacion
-      </div>
+    <div style={{ background: "#fffef7", border: `1px solid #e0d8c0`, borderLeft: `4px solid ${C.gold}`, borderRadius: 10, padding: "20px 22px", marginBottom: 24, fontFamily: "Georgia, serif", fontSize: 14, color: "#3a3228", lineHeight: 1.85 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: C.gold, marginBottom: 12 }}>Carta de Autorizacion</div>
       <p style={{ margin: "0 0 10px", fontSize: 12, color: C.sub, fontFamily: "system-ui" }}>12 Mayo 2026</p>
       <p style={{ margin: "0 0 12px", fontWeight: 700 }}>Amway Latam,</p>
-      <p style={{ margin: "0 0 12px" }}>
-        Por medio de la presente, los abajo firmantes deseamos solicitar el mantener la integridad de nuestra linea de auspicio.
-      </p>
-      <p style={{ margin: "0 0 12px" }}>
-        Actualmente, por un error, nos encontramos registrados bajo el codigo <strong>(IBO #2308327919 Bautista, Jose Dmitri)</strong>. Sin embargo, solicitamos permanecer bajo la linea de <strong>Paz Rosa Nohemi (IBO #7026401301)</strong>.
-      </p>
-      <p style={{ margin: "0 0 12px" }}>
-        Nuestro interes es preservar la continuidad, estabilidad y correcta organizacion de la red, respetando la linea de patrocinio originalmente establecida.
-      </p>
-      <p style={{ margin: "0 0 16px" }}>
-        Agradecemos de antemano su atencion y apoyo para corregir esta situacion.
-      </p>
+      <p style={{ margin: "0 0 12px" }}>Por medio de la presente, los abajo firmantes deseamos solicitar el mantener la integridad de nuestra linea de auspicio.</p>
+      <p style={{ margin: "0 0 12px" }}>Actualmente, por un error, nos encontramos registrados bajo el codigo <strong>(IBO #2308327919 Bautista, Jose Dmitri)</strong>. Sin embargo, solicitamos permanecer bajo la linea de <strong>Paz Rosa Nohemi (IBO #7026401301)</strong>.</p>
+      <p style={{ margin: "0 0 12px" }}>Nuestro interes es preservar la continuidad, estabilidad y correcta organizacion de la red, respetando la linea de patrocinio originalmente establecida.</p>
+      <p style={{ margin: "0 0 16px" }}>Agradecemos de antemano su atencion y apoyo para corregir esta situacion.</p>
       <p style={{ margin: "0 0 4px", fontStyle: "italic" }}>Atentamente,</p>
       <div style={{ marginTop: 12, padding: "10px 14px", background: "#f0f4ff", border: `1px solid #c7d7f5`, borderRadius: 8, fontSize: 13, color: C.accent, fontFamily: "system-ui" }}>
         Esta carta cuenta con <strong>{signedCount} de {total} firmantes</strong> que han agregado su firma.
@@ -215,7 +150,7 @@ function Letter({ signedCount, total }) {
   );
 }
 
-function SignView({ sigs, setSigs }) {
+function SignView({ sigs }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(null);
   const [done, setDone] = useState(false);
@@ -223,10 +158,7 @@ function SignView({ sigs, setSigs }) {
 
   const signedCount = Object.keys(sigs).length;
   const total = SIGNERS.length;
-
-  const matches = query.trim().length >= 2
-    ? SIGNERS.filter(s => s.name.toLowerCase().includes(query.toLowerCase()) || s.ibo.includes(query.trim()))
-    : [];
+  const matches = query.trim().length >= 2 ? SIGNERS.filter(s => s.name.toLowerCase().includes(query.toLowerCase()) || s.ibo.includes(query.trim())) : [];
 
   if (done && selected !== null) {
     const s = SIGNERS[selected];
@@ -248,9 +180,7 @@ function SignView({ sigs, setSigs }) {
     const alreadySigned = !!sigs[String(selected)];
     return (
       <div>
-        <button onClick={() => setSelected(null)} style={{ ...btn("#f3f4f6", C.sub), marginBottom: 16, fontSize: 12 }}>
-          Volver
-        </button>
+        <button onClick={() => setSelected(null)} style={{ ...btn("#f3f4f6", C.sub), marginBottom: 16, fontSize: 12 }}>Volver</button>
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 16 }}>
           <div style={{ fontSize: 11, color: C.sub, marginBottom: 2, fontFamily: "system-ui" }}>Firmante seleccionado</div>
           <div style={{ fontWeight: 700, fontSize: 16 }}>{s.name}</div>
@@ -263,22 +193,15 @@ function SignView({ sigs, setSigs }) {
             <div style={{ fontSize: 13, color: C.sub, marginTop: 4 }}>Tu firma fue registrada el {sigs[String(selected)].date}.</div>
           </div>
         ) : saving ? (
-          <div style={{ textAlign: "center", padding: 30, color: C.sub, fontFamily: "system-ui" }}>
-            Guardando firma... por favor espera
-          </div>
+          <div style={{ textAlign: "center", padding: 30, color: C.sub, fontFamily: "system-ui" }}>Guardando firma... por favor espera</div>
         ) : (
-          <SignatureCanvas
-            name={s.name.split(",")[0]}
-            onSave={async img => {
-              setSaving(true);
-              const date = new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
-              const updated = await saveSig(selected, { img, date }, sigs);
-              setSigs(updated);
-              setSaving(false);
-              setDone(true);
-            }}
-            onCancel={() => setSelected(null)}
-          />
+          <SignatureCanvas name={s.name.split(",")[0]} onSave={async img => {
+            setSaving(true);
+            const date = new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+            await saveSig(selected, date, img);
+            setSaving(false);
+            setDone(true);
+          }} onCancel={() => setSelected(null)} />
         )}
       </div>
     );
@@ -289,32 +212,18 @@ function SignView({ sigs, setSigs }) {
       <Letter signedCount={signedCount} total={total} />
       <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "20px 20px 24px" }}>
         <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Estas en la lista de firmantes?</div>
-        <div style={{ fontSize: 13, color: C.sub, marginBottom: 14 }}>
-          Escribe tu nombre, apellido o numero IBO para encontrarte y firmar.
-        </div>
-        <input
-          placeholder="Escribe tu nombre, apellido o numero IBO"
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          autoFocus
-          style={{ width: "100%", boxSizing: "border-box", background: "#f9fafb", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "11px 14px", fontFamily: "system-ui", fontSize: 14, color: C.text, outline: "none" }}
-        />
+        <div style={{ fontSize: 13, color: C.sub, marginBottom: 14 }}>Escribe tu nombre, apellido o numero IBO para encontrarte y firmar.</div>
+        <input placeholder="Escribe tu nombre, apellido o numero IBO" value={query} onChange={e => setQuery(e.target.value)} autoFocus
+          style={{ width: "100%", boxSizing: "border-box", background: "#f9fafb", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "11px 14px", fontFamily: "system-ui", fontSize: 14, color: C.text, outline: "none" }} />
         {query.trim().length >= 2 && (
           <div style={{ marginTop: 10 }}>
-            {matches.length === 0 ? (
-              <div style={{ color: C.red, fontSize: 13, padding: "8px 0" }}>No se encontro ningun firmante.</div>
-            ) : (
+            {matches.length === 0 ? <div style={{ color: C.red, fontSize: 13, padding: "8px 0" }}>No se encontro ningun firmante.</div> : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {matches.map(s => {
                   const i = SIGNERS.indexOf(s);
                   const signed = !!sigs[String(i)];
                   return (
-                    <button key={i} onClick={() => { setSelected(i); setDone(false); }} style={{
-                      background: signed ? C.greenBg : "#f8faff",
-                      border: `1.5px solid ${signed ? "#bbf7d0" : C.accentL}`,
-                      borderRadius: 8, padding: "11px 14px",
-                      cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 10,
-                    }}>
+                    <button key={i} onClick={() => { setSelected(i); setDone(false); }} style={{ background: signed ? C.greenBg : "#f8faff", border: `1.5px solid ${signed ? "#bbf7d0" : C.accentL}`, borderRadius: 8, padding: "11px 14px", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 10 }}>
                       <span style={{ fontSize: 20 }}>{signed ? "✓" : "✍"}</span>
                       <div>
                         <div style={{ fontWeight: 600, fontSize: 14, color: C.text }}>{s.name}</div>
@@ -344,8 +253,7 @@ function AdminView({ sigs, setSigs }) {
       <input type="password" placeholder="Contrasena" value={pass} onChange={e => setPass(e.target.value)}
         onKeyDown={e => e.key === "Enter" && (pass === ADMIN_PASS ? setAuth(true) : alert("Contrasena incorrecta."))}
         style={{ border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "10px 14px", fontSize: 14, outline: "none", width: 200, textAlign: "center", display: "block", margin: "0 auto 10px" }} />
-      <button onClick={() => pass === ADMIN_PASS ? setAuth(true) : alert("Contrasena incorrecta.")}
-        style={{ ...btn(C.accent, "#fff"), fontWeight: 700 }}>Entrar</button>
+      <button onClick={() => pass === ADMIN_PASS ? setAuth(true) : alert("Contrasena incorrecta.")} style={{ ...btn(C.accent, "#fff"), fontWeight: 700 }}>Entrar</button>
     </div>
   );
 
@@ -370,12 +278,8 @@ function AdminView({ sigs, setSigs }) {
         const rows = [["#", "Nombre", "IBO", "Fecha"]];
         SIGNERS.forEach((s, i) => rows.push([i + 1, s.name, s.ibo, sigs[String(i)] ? sigs[String(i)].date : "Pendiente"]));
         const csv = rows.map(r => r.map(c => `"${c}"`).join(",")).join("\n");
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-        a.download = "firmas_amway_latam.csv"; a.click();
-      }} style={{ ...btn(C.accent, "#fff"), width: "100%", fontWeight: 700, marginBottom: 10 }}>
-        Exportar lista (CSV)
-      </button>
+        const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = "firmas_amway_latam.csv"; a.click();
+      }} style={{ ...btn(C.accent, "#fff"), width: "100%", fontWeight: 700, marginBottom: 10 }}>Exportar lista (CSV)</button>
       <button onClick={() => {
         const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><title>Carta Amway LATAM</title>
 <style>body{font-family:Georgia,serif;max-width:750px;margin:40px auto;padding:0 30px;color:#1a1a1a}h2{color:#1a4480}.carta{border-left:4px solid #b45309;padding:16px 20px;background:#fffef7;margin-bottom:30px;font-size:14px;line-height:1.8}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.box{border:1px solid #ddd;border-radius:8px;padding:12px}.nom{font-weight:bold;font-size:13px}.ibo{font-size:11px;color:#6b7280;margin-bottom:8px}.img{width:100%;max-height:60px;object-fit:contain;background:#fff;border:1px dashed #ccc;padding:4px;box-sizing:border-box}.fec{font-size:10px;color:#6b7280;margin-top:4px}.pen{color:#9ca3af;font-style:italic;font-size:12px}@media print{body{margin:20px}}</style></head><body>
@@ -384,19 +288,12 @@ function AdminView({ sigs, setSigs }) {
 <h3>Firmas (${signed} de ${total})</h3>
 <div class="grid">${SIGNERS.map((s,i)=>{const d=sigs[String(i)];return `<div class="box"><div class="nom">${s.name}</div><div class="ibo">IBO #${s.ibo}</div>${d&&d.img?`<img class="img" src="${d.img}"/><div class="fec">Firmado: ${d.date}</div>`:`<div class="pen">Pendiente</div>`}</div>`;}).join("")}</div>
 </body></html>`;
-        const w = window.open("","_blank");
-        w.document.write(html);
-        w.document.close();
-        setTimeout(()=>w.print(),800);
-      }} style={{ ...btn("#15803d", "#fff"), width: "100%", fontWeight: 700, marginBottom: 10 }}>
-        Exportar PDF con todas las firmas
-      </button>
+        const w = window.open("","_blank"); w.document.write(html); w.document.close(); setTimeout(()=>w.print(),800);
+      }} style={{ ...btn("#15803d", "#fff"), width: "100%", fontWeight: 700, marginBottom: 10 }}>Exportar PDF con todas las firmas</button>
       <button onClick={async () => {
         if (!window.confirm("Borrar TODAS las firmas?")) return;
         await clearAllSigs(); setSigs({});
-      }} style={{ ...btn("#fff0f0", C.red), width: "100%", marginBottom: 20 }}>
-        Borrar todas las firmas
-      </button>
+      }} style={{ ...btn("#fff0f0", C.red), width: "100%", marginBottom: 20 }}>Borrar todas las firmas</button>
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
         {SIGNERS.map((s, i) => {
           const d = sigs[String(i)];
@@ -422,11 +319,22 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadSigs().then(data => { setSigs(data); setLoading(false); });
+    const { collection, onSnapshot: snap } = require("firebase/firestore");
+    const unsub = onSnapshot(
+      require("firebase/firestore").collection(db, "firmas"),
+      (snapshot) => {
+        const data = {};
+        snapshot.forEach(d => { data[d.id] = d.data(); });
+        setSigs(data);
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
+    return unsub;
   }, []);
 
   if (loading) return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Georgia, serif" }}>
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ color: C.sub, fontSize: 16 }}>Cargando...</div>
     </div>
   );
@@ -454,7 +362,7 @@ export default function App() {
             <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, padding: "10px 8px", border: "none", cursor: "pointer", background: tab === t.id ? C.accent : "transparent", color: tab === t.id ? "#fff" : C.sub, fontFamily: "system-ui", fontSize: 13, fontWeight: tab === t.id ? 700 : 400 }}>{t.label}</button>
           ))}
         </div>
-        {tab === "sign" && <SignView sigs={sigs} setSigs={setSigs} />}
+        {tab === "sign" && <SignView sigs={sigs} />}
         {tab === "admin" && <AdminView sigs={sigs} setSigs={setSigs} />}
       </div>
     </div>
