@@ -3,14 +3,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 // ─────────────────────────────────────────────────────────────────────────────
 // JSONBin.io — base de datos gratuita, no necesita configuración extra
 // Crea una cuenta en jsonbin.io, crea un bin con {} y pega el BIN_ID y API_KEY
-// ─────────────────────────────────────────────────────────────────────────────
-const GSCRIPT_URL = "https://script.google.com/macros/s/AKfycbxgOUCqt1BNzyB54KqRz60p5GZIsWzcZtPn-l7Agt499sU0u1qNcl31fbau3lUGpC4/exec";
-
-const ADMIN_PASS = "Dimito26";
-
-const SIGNERS = [
-  { name: "Galan, Theo",                          ibo: "6006058072" },
-  { name: "Bautista Mijailov, Jose Dmitri",        ibo: "2308327919" },
+// ─────────────────────────────────────────────────────────────────────────────  { name: "Bautista Mijailov, Jose Dmitri",        ibo: "2308327919" },
   { name: "Quintero Correa, Jose Luis",            ibo: "7025301416" },
   { name: "Hernandez Garcia, Diego Alejandro",     ibo: "7025467376" },
   { name: "Ramirez Galeano, Wilson Yovany",        ibo: "7027078710" },
