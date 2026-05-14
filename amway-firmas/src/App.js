@@ -71,6 +71,8 @@ async function saveSig(idx, sigData, allSigs) {
   try {
     await fetch(GSCRIPT_URL, {
       method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({
         action: "save",
         index: String(idx),
@@ -91,6 +93,8 @@ async function clearAllSigs() {
   try {
     await fetch(GSCRIPT_URL, {
       method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "clear" })
     });
   } catch (e) {
