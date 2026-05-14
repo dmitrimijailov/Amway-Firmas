@@ -4,10 +4,9 @@ import { useState, useRef, useEffect, useCallback } from "react";
 // JSONBin.io — base de datos gratuita, no necesita configuración extra
 // Crea una cuenta en jsonbin.io, crea un bin con {} y pega el BIN_ID y API_KEY
 // ─────────────────────────────────────────────────────────────────────────────
-const JSONBIN_BIN_ID = "6a03fb06adc21f119a9155dd";
-const JSONBIN_API_KEY = "$2a$10$mRa7FTILqRfWVvcK5C5hqOQPY/aeDObYGND1VAhushmJdjutPEFgy";
+const GSCRIPT_URL = "https://script.google.com/macros/s/AKfycbxgOUCqt1BNzyB54KqRz60p5GZIsWzcZtPn-l7Agt499sU0u1qNcl31fbau3lUGpC4/exec";
 
-const ADMIN_PASS = "worldcrownss";
+const ADMIN_PASS = "Dimito26";
 
 const SIGNERS = [
   { name: "Galan, Theo",                          ibo: "6006058072" },
@@ -65,47 +64,31 @@ const C = {
   ink: "#1a3a6b", gold: "#b45309",
 };
 
-// ── JSONBin helpers ───────────────────────────────────────────────────────────
-const VALID_IDX = new Set(Array.from({length:45},(_,i)=>String(i)));
+// ── Google Sheets helpers ────────────────────────────────────────────────────
+const GSCRIPT_URL = "https://script.google.com/macros/s/AKfycbxgOUCqt1BNzyB54KqRz60p5GZIsWzcZtPn-l7Agt499sU0u1qNcl31fbau3lUGpC4/exec";
 
 async function loadSigs() {
   try {
-    const r = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
-      headers: { "X-Master-Key": JSONBIN_API_KEY }
-    });
+    const r = await fetch(GSCRIPT_URL + "?action=load");
     const data = await r.json();
-    const raw = data.record || {};
-    const clean = {};
-    Object.keys(raw).forEach(k => { if (VALID_IDX.has(k)) clean[k] = raw[k]; });
-    return clean;
+    return data || {};
   } catch { return {}; }
 }
 
 async function saveSig(idx, sigData, allSigs) {
   try {
-    const updated = { ...allSigs, [String(idx)]: { date: sigData.date, signed: true, img: sigData.img } };
-    const r = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Master-Key": JSONBIN_API_KEY
-      },
-      body: JSON.stringify(updated)
+    await fetch(GSCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({ action: "save", index: String(idx), nombre: sigData.nombre, ibo: sigData.ibo, fecha: sigData.date })
     });
-    if (!r.ok) throw new Error("Save failed");
-    return updated;
+    return { ...allSigs, [String(idx)]: { date: sigData.date, signed: true } };
   } catch (e) { console.error(e); return allSigs; }
 }
 
 async function clearAllSigs() {
   try {
-    const r = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", "X-Master-Key": JSONBIN_API_KEY },
-      body: JSON.stringify({})
-    });
-    if (!r.ok) throw new Error("Clear failed");
-  } catch {}
+    await fetch(GSCRIPT_URL, { method: "POST", body: JSON.stringify({ action: "clear" }) });
+  } catch (e) { console.error(e); alert("Error al borrar."); }
 }
 
 // ── Signature Canvas ──────────────────────────────────────────────────────────
@@ -266,7 +249,7 @@ function SignView({ sigs, setSigs }) {
             onSave={async img => {
               setSaving(true);
               const date = new Date().toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
-              const updated = await saveSig(selected, { img, date }, sigs);
+              const updated = await saveSig(selected, { img, date, nombre: SIGNERS[selected].name, ibo: SIGNERS[selected].ibo }, sigs);
               setSigs(updated);
               setSaving(false);
               setDone(true);
