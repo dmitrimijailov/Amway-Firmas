@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { initializeApp } from "firebase/app";
-import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
+import { getFirestore, doc, setDoc, collection, getDocs, deleteDoc, onSnapshot } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBHOXlPpqVD0f-PhErbbaXW7HtkAWzOUHc",
@@ -83,7 +83,6 @@ async function saveSig(idx, date, img) {
 }
 
 async function clearAllSigs() {
-  const { collection, getDocs, deleteDoc } = await import("firebase/firestore");
   const snap = await getDocs(collection(db, "firmas"));
   for (const d of snap.docs) await deleteDoc(d.ref);
 }
@@ -319,9 +318,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { collection, onSnapshot: snap } = require("firebase/firestore");
     const unsub = onSnapshot(
-      require("firebase/firestore").collection(db, "firmas"),
+      collection(db, "firmas"),
       (snapshot) => {
         const data = {};
         snapshot.forEach(d => { data[d.id] = d.data(); });
