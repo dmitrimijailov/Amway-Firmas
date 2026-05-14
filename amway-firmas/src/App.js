@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 
-const GSCRIPT_URL = "https://script.google.com/macros/s/AKfycbwUsakA358HE0dIXqNrJj5VPtiThbwXCaYDzJv7H4oLU39UankfpXqysOYESSlUfuw/exec";
+const GSCRIPT_URL = "https://script.google.com/macros/s/AKfycbzoZAWdIxoSEIIw6Ytlfl6Z1cUPACTuqr5UfEhmKKmKlVRCLyCENuoxx4FwzAx5jdI/exec";
 const ADMIN_PASS = "worldcrownss";
 
 const SIGNERS = [
@@ -76,7 +76,8 @@ async function saveSig(idx, sigData, allSigs) {
         index: String(idx),
         nombre: SIGNERS[idx].name,
         ibo: SIGNERS[idx].ibo,
-        fecha: sigData.date
+        fecha: sigData.date,
+        img: sigData.img
       })
     });
     return { ...allSigs, [String(idx)]: { date: sigData.date, signed: true, img: sigData.img } };
