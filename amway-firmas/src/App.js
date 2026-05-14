@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 
 const GSCRIPT_URL = "https://script.google.com/macros/s/AKfycbwUsakA358HE0dIXqNrJj5VPtiThbwXCaYDzJv7H4oLU39UankfpXqysOYESSlUfuw/exec";
-const ADMIN_PASS = "Dimito26";
+const ADMIN_PASS = "worldcrownss";
 
 const SIGNERS = [
   { name: "Galan, Theo",                          ibo: "6006058072" },
