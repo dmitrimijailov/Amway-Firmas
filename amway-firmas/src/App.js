@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 
-const GSCRIPT_URL = "https://script.google.com/macros/s/AKfycbzoZAWdIxoSEIIw6Ytlfl6Z1cUPACTuqr5UfEhmKKmKlVRCLyCENuoxx4FwzAx5jdI/exec";
+// Google Apps Script URL
+const GSCRIPT_URL = "https://script.google.com/macros/s/AKfycbyuT8YrlZFGfU1JOhF6AxRdnKWXU02zEOFrQnPdupibBdi5C0-L3wVgWvVPLD7xrzo/exec";
 const ADMIN_PASS = "worldcrownss";
 
 const SIGNERS = [
@@ -59,6 +60,38 @@ const C = {
   ink: "#1a3a6b", gold: "#b45309",
 };
 
+// Submit via iframe trick to bypass CORS
+function submitViaForm(data) {
+  return new Promise((resolve) => {
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = GSCRIPT_URL;
+    form.target = "hidden_iframe";
+    form.style.display = "none";
+
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = "payload";
+    input.value = JSON.stringify(data);
+    form.appendChild(input);
+
+    let iframe = document.getElementById("hidden_iframe");
+    if (!iframe) {
+      iframe = document.createElement("iframe");
+      iframe.name = "hidden_iframe";
+      iframe.id = "hidden_iframe";
+      iframe.style.display = "none";
+      document.body.appendChild(iframe);
+    }
+
+    iframe.onload = () => resolve(true);
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
+    setTimeout(() => resolve(true), 3000);
+  });
+}
+
 async function loadSigs() {
   try {
     const r = await fetch(GSCRIPT_URL + "?action=load");
@@ -69,18 +102,13 @@ async function loadSigs() {
 
 async function saveSig(idx, sigData, allSigs) {
   try {
-    await fetch(GSCRIPT_URL, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({
-        action: "save",
-        index: String(idx),
-        nombre: SIGNERS[idx].name,
-        ibo: SIGNERS[idx].ibo,
-        fecha: sigData.date,
-        img: sigData.img
-      })
+    await submitViaForm({
+      action: "save",
+      index: String(idx),
+      nombre: SIGNERS[idx].name,
+      ibo: SIGNERS[idx].ibo,
+      fecha: sigData.date,
+      img: sigData.img
     });
     return { ...allSigs, [String(idx)]: { date: sigData.date, signed: true, img: sigData.img } };
   } catch (e) {
@@ -91,16 +119,8 @@ async function saveSig(idx, sigData, allSigs) {
 
 async function clearAllSigs() {
   try {
-    await fetch(GSCRIPT_URL, {
-      method: "POST",
-      mode: "no-cors",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "clear" })
-    });
-  } catch (e) {
-    console.error(e);
-    alert("Error al borrar. Intenta de nuevo.");
-  }
+    await submitViaForm({ action: "clear" });
+  } catch (e) { console.error(e); }
 }
 
 function SignatureCanvas({ name, onSave, onCancel }) {
@@ -179,7 +199,7 @@ function Letter({ signedCount, total }) {
         Por medio de la presente, los abajo firmantes deseamos solicitar el mantener la integridad de nuestra linea de auspicio.
       </p>
       <p style={{ margin: "0 0 12px" }}>
-        Actualmente, por un error, nos encontramos registrados bajo el codigo <strong>(IBO #2308327919 Bautista, Jose Dmitri)</strong>. Sin embargo, para mantener la continuidad y estructura correcta de la linea de auspicio correspondiente en Estados Unidos, solicitamos que nuestra organizacion permanezca alineada bajo la linea que inicia con <strong>Paz Rosa Nohemi (IBO #7026401301)</strong>.
+        Actualmente, por un error, nos encontramos registrados bajo el codigo <strong>(IBO #2308327919 Bautista, Jose Dmitri)</strong>. Sin embargo, solicitamos permanecer bajo la linea de <strong>Paz Rosa Nohemi (IBO #7026401301)</strong>.
       </p>
       <p style={{ margin: "0 0 12px" }}>
         Nuestro interes es preservar la continuidad, estabilidad y correcta organizacion de la red, respetando la linea de patrocinio originalmente establecida.
@@ -188,11 +208,7 @@ function Letter({ signedCount, total }) {
         Agradecemos de antemano su atencion y apoyo para corregir esta situacion.
       </p>
       <p style={{ margin: "0 0 4px", fontStyle: "italic" }}>Atentamente,</p>
-      <div style={{
-        marginTop: 12, padding: "10px 14px",
-        background: "#f0f4ff", border: `1px solid #c7d7f5`,
-        borderRadius: 8, fontSize: 13, color: C.accent, fontFamily: "system-ui"
-      }}>
+      <div style={{ marginTop: 12, padding: "10px 14px", background: "#f0f4ff", border: `1px solid #c7d7f5`, borderRadius: 8, fontSize: 13, color: C.accent, fontFamily: "system-ui" }}>
         Esta carta cuenta con <strong>{signedCount} de {total} firmantes</strong> que han agregado su firma.
       </div>
     </div>
@@ -209,9 +225,7 @@ function SignView({ sigs, setSigs }) {
   const total = SIGNERS.length;
 
   const matches = query.trim().length >= 2
-    ? SIGNERS.filter(s =>
-        s.name.toLowerCase().includes(query.toLowerCase()) || s.ibo.includes(query.trim())
-      )
+    ? SIGNERS.filter(s => s.name.toLowerCase().includes(query.toLowerCase()) || s.ibo.includes(query.trim()))
     : [];
 
   if (done && selected !== null) {
@@ -250,7 +264,7 @@ function SignView({ sigs, setSigs }) {
           </div>
         ) : saving ? (
           <div style={{ textAlign: "center", padding: 30, color: C.sub, fontFamily: "system-ui" }}>
-            Guardando firma...
+            Guardando firma... por favor espera
           </div>
         ) : (
           <SignatureCanvas
@@ -283,19 +297,12 @@ function SignView({ sigs, setSigs }) {
           value={query}
           onChange={e => setQuery(e.target.value)}
           autoFocus
-          style={{
-            width: "100%", boxSizing: "border-box",
-            background: "#f9fafb", border: `1.5px solid ${C.border}`,
-            borderRadius: 8, padding: "11px 14px",
-            fontFamily: "system-ui", fontSize: 14, color: C.text, outline: "none",
-          }}
+          style={{ width: "100%", boxSizing: "border-box", background: "#f9fafb", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: "11px 14px", fontFamily: "system-ui", fontSize: 14, color: C.text, outline: "none" }}
         />
         {query.trim().length >= 2 && (
           <div style={{ marginTop: 10 }}>
             {matches.length === 0 ? (
-              <div style={{ color: C.red, fontSize: 13, padding: "8px 0" }}>
-                No se encontro ningun firmante. Verifica el nombre o IBO.
-              </div>
+              <div style={{ color: C.red, fontSize: 13, padding: "8px 0" }}>No se encontro ningun firmante.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {matches.map(s => {
@@ -311,9 +318,7 @@ function SignView({ sigs, setSigs }) {
                       <span style={{ fontSize: 20 }}>{signed ? "✓" : "✍"}</span>
                       <div>
                         <div style={{ fontWeight: 600, fontSize: 14, color: C.text }}>{s.name}</div>
-                        <div style={{ fontSize: 11, color: C.sub, fontFamily: "system-ui" }}>
-                          IBO #{s.ibo} - {signed ? "Ya firmaste" : "Pendiente de firma"}
-                        </div>
+                        <div style={{ fontSize: 11, color: C.sub, fontFamily: "system-ui" }}>IBO #{s.ibo} - {signed ? "Ya firmaste" : "Pendiente"}</div>
                       </div>
                     </button>
                   );
@@ -351,11 +356,7 @@ function AdminView({ sigs, setSigs }) {
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 16 }}>
-        {[
-          { label: "Total", val: total, color: C.accent },
-          { label: "Firmaron", val: signed, color: C.green },
-          { label: "Pendientes", val: total - signed, color: C.gold },
-        ].map(s => (
+        {[{ label: "Total", val: total, color: C.accent }, { label: "Firmaron", val: signed, color: C.green }, { label: "Pendientes", val: total - signed, color: C.gold }].map(s => (
           <div key={s.label} style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 8px", textAlign: "center" }}>
             <div style={{ fontSize: 26, fontWeight: 800, color: s.color, fontFamily: "system-ui" }}>{s.val}</div>
             <div style={{ fontSize: 11, color: C.sub, fontFamily: "system-ui" }}>{s.label}</div>
@@ -365,7 +366,6 @@ function AdminView({ sigs, setSigs }) {
       <div style={{ height: 7, background: "#e5e7eb", borderRadius: 99, overflow: "hidden", marginBottom: 20 }}>
         <div style={{ height: "100%", borderRadius: 99, width: `${pct}%`, background: `linear-gradient(90deg,${C.accent},${C.accentL})` }} />
       </div>
-
       <button onClick={() => {
         const rows = [["#", "Nombre", "IBO", "Fecha"]];
         SIGNERS.forEach((s, i) => rows.push([i + 1, s.name, s.ibo, sigs[String(i)] ? sigs[String(i)].date : "Pendiente"]));
@@ -376,19 +376,11 @@ function AdminView({ sigs, setSigs }) {
       }} style={{ ...btn(C.accent, "#fff"), width: "100%", fontWeight: 700, marginBottom: 10 }}>
         Exportar lista (CSV)
       </button>
-
       <button onClick={() => {
-        const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/>
-<title>Carta Amway LATAM</title>
-<style>body{font-family:Georgia,serif;max-width:750px;margin:40px auto;padding:0 30px;color:#1a1a1a}h2{color:#1a4480}.carta{border-left:4px solid #b45309;padding:16px 20px;background:#fffef7;margin-bottom:30px;font-size:14px;line-height:1.8}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.box{border:1px solid #ddd;border-radius:8px;padding:12px}.nom{font-weight:bold;font-size:13px}.ibo{font-size:11px;color:#6b7280;margin-bottom:8px}.img{width:100%;max-height:60px;object-fit:contain;background:#fff;border:1px dashed #ccc;border-radius:4px;padding:4px;box-sizing:border-box}.fec{font-size:10px;color:#6b7280;margin-top:4px}.pen{color:#9ca3af;font-style:italic;font-size:12px}@media print{body{margin:20px}}</style></head><body>
+        const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"/><title>Carta Amway LATAM</title>
+<style>body{font-family:Georgia,serif;max-width:750px;margin:40px auto;padding:0 30px;color:#1a1a1a}h2{color:#1a4480}.carta{border-left:4px solid #b45309;padding:16px 20px;background:#fffef7;margin-bottom:30px;font-size:14px;line-height:1.8}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.box{border:1px solid #ddd;border-radius:8px;padding:12px}.nom{font-weight:bold;font-size:13px}.ibo{font-size:11px;color:#6b7280;margin-bottom:8px}.img{width:100%;max-height:60px;object-fit:contain;background:#fff;border:1px dashed #ccc;padding:4px;box-sizing:border-box}.fec{font-size:10px;color:#6b7280;margin-top:4px}.pen{color:#9ca3af;font-style:italic;font-size:12px}@media print{body{margin:20px}}</style></head><body>
 <h2>Carta de Autorizacion - Amway LATAM</h2>
-<div class="carta">
-<p><strong>Amway Latam,</strong></p>
-<p>Por medio de la presente, los abajo firmantes deseamos solicitar el mantener la integridad de nuestra linea de auspicio.</p>
-<p>Actualmente, por un error, nos encontramos registrados bajo el codigo <strong>(IBO #2308327919 Bautista, Jose Dmitri)</strong>. Sin embargo, solicitamos permanecer bajo la linea de <strong>Paz Rosa Nohemi (IBO #7026401301)</strong>.</p>
-<p>Nuestro interes es preservar la continuidad, estabilidad y correcta organizacion de la red.</p>
-<p>Agradecemos de antemano su atencion y apoyo.</p>
-<p><em>Atentamente,</em></p></div>
+<div class="carta"><p><strong>Amway Latam,</strong></p><p>Por medio de la presente, los abajo firmantes deseamos solicitar el mantener la integridad de nuestra linea de auspicio.</p><p>Actualmente, por un error, nos encontramos registrados bajo el codigo <strong>(IBO #2308327919 Bautista, Jose Dmitri)</strong>. Sin embargo, solicitamos permanecer bajo la linea de <strong>Paz Rosa Nohemi (IBO #7026401301)</strong>.</p><p>Nuestro interes es preservar la continuidad, estabilidad y correcta organizacion de la red.</p><p>Agradecemos de antemano su atencion y apoyo.</p><p><em>Atentamente,</em></p></div>
 <h3>Firmas (${signed} de ${total})</h3>
 <div class="grid">${SIGNERS.map((s,i)=>{const d=sigs[String(i)];return `<div class="box"><div class="nom">${s.name}</div><div class="ibo">IBO #${s.ibo}</div>${d&&d.img?`<img class="img" src="${d.img}"/><div class="fec">Firmado: ${d.date}</div>`:`<div class="pen">Pendiente</div>`}</div>`;}).join("")}</div>
 </body></html>`;
@@ -399,32 +391,23 @@ function AdminView({ sigs, setSigs }) {
       }} style={{ ...btn("#15803d", "#fff"), width: "100%", fontWeight: 700, marginBottom: 10 }}>
         Exportar PDF con todas las firmas
       </button>
-
       <button onClick={async () => {
         if (!window.confirm("Borrar TODAS las firmas?")) return;
-        await clearAllSigs();
-        setSigs({});
+        await clearAllSigs(); setSigs({});
       }} style={{ ...btn("#fff0f0", C.red), width: "100%", marginBottom: 20 }}>
         Borrar todas las firmas
       </button>
-
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
         {SIGNERS.map((s, i) => {
           const d = sigs[String(i)];
           return (
-            <div key={i} style={{
-              background: d ? C.greenBg : C.surface,
-              border: `1px solid ${d ? "#bbf7d0" : C.border}`,
-              borderRadius: 8, padding: "9px 14px",
-              display: "flex", alignItems: "center", gap: 10,
-            }}>
+            <div key={i} style={{ background: d ? C.greenBg : C.surface, border: `1px solid ${d ? "#bbf7d0" : C.border}`, borderRadius: 8, padding: "9px 14px", display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ color: d ? C.green : "#d1d5db", fontSize: 15 }}>{d ? "✓" : "○"}</span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 13, color: C.text }}>{s.name}</div>
-                <div style={{ fontSize: 11, color: C.sub, fontFamily: "system-ui" }}>
-                  IBO #{s.ibo}{d ? ` - ${d.date}` : ""}
-                </div>
+                <div style={{ fontSize: 11, color: C.sub, fontFamily: "system-ui" }}>IBO #{s.ibo}{d ? ` - ${d.date}` : ""}</div>
               </div>
+              {d && d.img && <img src={d.img} alt="firma" style={{ height: 30, border: `1px solid #d1d5db`, borderRadius: 4, background: "#fff", padding: "1px 6px", flexShrink: 0 }} />}
             </div>
           );
         })}
@@ -434,12 +417,15 @@ function AdminView({ sigs, setSigs }) {
 }
 
 export default function App() {
-  const [sigs, setSigs] = useState(null);
+  const [sigs, setSigs] = useState({});
   const [tab, setTab] = useState("sign");
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadSigs().then(setSigs); }, []);
+  useEffect(() => {
+    loadSigs().then(data => { setSigs(data); setLoading(false); });
+  }, []);
 
-  if (!sigs) return (
+  if (loading) return (
     <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Georgia, serif" }}>
       <div style={{ color: C.sub, fontSize: 16 }}>Cargando...</div>
     </div>
@@ -455,27 +441,17 @@ export default function App() {
           <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
             <div style={{ fontSize: 30 }}>&#128203;</div>
             <div>
-              <div style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", opacity: 0.65, marginBottom: 3 }}>
-                Carta de Autorizacion - Amway LATAM
-              </div>
+              <div style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", opacity: 0.65, marginBottom: 3 }}>Carta de Autorizacion - Amway LATAM</div>
               <div style={{ fontSize: 16, fontWeight: 700 }}>Integridad de Linea de Auspicio</div>
-              <div style={{ fontSize: 11, opacity: 0.7, marginTop: 3 }}>
-                {signed}/{total} firmantes - {Math.round(signed / total * 100)}% completado
-              </div>
+              <div style={{ fontSize: 11, opacity: 0.7, marginTop: 3 }}>{signed}/{total} firmantes - {Math.round(signed/total*100)}% completado</div>
             </div>
           </div>
         </div>
       </div>
-
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "0 16px 60px" }}>
         <div style={{ display: "flex", border: `1px solid ${C.border}`, borderTop: "none", borderRadius: "0 0 10px 10px", overflow: "hidden", marginBottom: 22, background: C.surface }}>
           {[{ id: "sign", label: "Firmar" }, { id: "admin", label: "Admin" }].map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              flex: 1, padding: "10px 8px", border: "none", cursor: "pointer",
-              background: tab === t.id ? C.accent : "transparent",
-              color: tab === t.id ? "#fff" : C.sub,
-              fontFamily: "system-ui", fontSize: 13, fontWeight: tab === t.id ? 700 : 400,
-            }}>{t.label}</button>
+            <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, padding: "10px 8px", border: "none", cursor: "pointer", background: tab === t.id ? C.accent : "transparent", color: tab === t.id ? "#fff" : C.sub, fontFamily: "system-ui", fontSize: 13, fontWeight: tab === t.id ? 700 : 400 }}>{t.label}</button>
           ))}
         </div>
         {tab === "sign" && <SignView sigs={sigs} setSigs={setSigs} />}
@@ -486,9 +462,5 @@ export default function App() {
 }
 
 function btn(bg, color) {
-  return {
-    background: bg, color, border: `1px solid rgba(0,0,0,.08)`,
-    borderRadius: 8, padding: "9px 16px", cursor: "pointer",
-    fontFamily: "system-ui", fontSize: 13,
-  };
+  return { background: bg, color, border: `1px solid rgba(0,0,0,.08)`, borderRadius: 8, padding: "9px 16px", cursor: "pointer", fontFamily: "system-ui", fontSize: 13 };
 }
